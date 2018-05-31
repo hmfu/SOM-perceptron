@@ -1,6 +1,7 @@
 import argparse
 import tensorflow as tf
 import numpy as np
+import random
 
 config = tf.ConfigProto(allow_soft_placement = True)
 config.gpu_options.allow_growth = True
@@ -52,6 +53,7 @@ class SOM_perceptron():
         self.hiddenPHList = None
         self.lossPHList = None
         self.outputPH = None
+        self.ptNum = len(ptArr)
 
     def perceptronLayer(self, inPH, outDim, useSigmoid):
         inDim = tf.cast(inPH.shape[1], tf.int32)
@@ -93,7 +95,8 @@ class SOM_perceptron():
         with tf.Session(config = config) as sess:
             sess.run(tf.global_variables_initializer())
             for layerInd in range(self.L):
-                print ('\ntotal epoch num: ', epochNum)
+                print ('\nuse random sample: ', useRandSamp)
+                print ('total epoch num: ', epochNum)
                 print ('training layer %d...' % (layerInd))
                 inPHValue = self.ptArr if layerInd == 0 else sess.run(self.hiddenPHList[layerInd-1], feed_dict = {self.inputPH: self.ptArr})
                 for epochInd in range(epochNum):
@@ -103,11 +106,17 @@ class SOM_perceptron():
                         self.evaluate(sess)
                     self.trainLayer(sess, layerInd, inPHValue)
         
-    def trainLayer(self, sess, layerInd, inPHValue):
+    def trainLayer(self, sess, layerInd, inPHValue, useRandSamp):
         inPH = self.inputPH if layerInd == 0 else self.hiddenPHList[layerInd - 1]
         outPHValue = sess.run(self.hiddenPHList[layerInd], feed_dict = {inPH: inPHValue})
-        sameClassMaxDistPair = self.getSameClassMaxDistPair(inPHValue, outPHValue)
-        diffClassMinDistPair = self.getDiffClassMinDistPair(inPHValue, outPHValue)
+        
+        if useRandSamp:
+            sameClassMinDistPair = np.array([self.ptArr[random.randint(0, self.ptNum)] for _ in range(2)])
+            diffClassMinDistPair = np.array([self.ptArr[random.randint(0, self.ptNum)] for _ in range(2)])
+        else:
+            sameClassMaxDistPair = self.getSameClassMaxDistPair(inPHValue, outPHValue)
+            diffClassMinDistPair = self.getDiffClassMinDistPair(inPHValue, outPHValue)
+        
         trainFeedDict = {inPH: np.concatenate([sameClassMaxDistPair, diffClassMinDistPair], axis = 0)}
         
         optimizer = tf.train.GradientDescentOptimizer(learning_rate = 1.0).minimize(self.lossPHList[layerInd], var_list = [self.weightList[layerInd], self.biasList[layerInd]])
@@ -148,4 +157,4 @@ if __name__ == '__main__':
 
     som = SOM_perceptron(df.ptArr, df.sameClassArr, df.diffClassArr)
     som.buildModel(L = 5, nList = [5, 5, 5, 5, 5], EtaAtt = 0.01, EtaRep = 0.1)
-    som.trainModel(epochNum = 5000, evalPerEpochNum = 500)
+    som.trainModel(epochNum = 5000, evalPerEpochNum = 500, useRandSamp = True)
