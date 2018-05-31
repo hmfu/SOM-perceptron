@@ -91,7 +91,7 @@ class SOM_perceptron():
             row3 = tf.gather(self.hiddenPHList[layerInd], tf.constant([3]))
             self.lossPHList += [tf.constant(EtaAtt / 2) * tf.reduce_sum(tf.square(row0 - row1)) - tf.constant(EtaRep / 2) * tf.reduce_sum(tf.square(row2 - row3))]
 
-    def trainModel(self, epochNum, evalPerEpochNum):
+    def trainModel(self, epochNum, evalPerEpochNum, useRandSamp):
         with tf.Session(config = config) as sess:
             sess.run(tf.global_variables_initializer())
             for layerInd in range(self.L):
@@ -104,15 +104,15 @@ class SOM_perceptron():
                         print ('training epoch %d...' % (epochInd))
                         print ('evaluating...')
                         self.evaluate(sess)
-                    self.trainLayer(sess, layerInd, inPHValue)
+                    self.trainLayer(sess, layerInd, inPHValue, useRandSamp)
         
     def trainLayer(self, sess, layerInd, inPHValue, useRandSamp):
         inPH = self.inputPH if layerInd == 0 else self.hiddenPHList[layerInd - 1]
         outPHValue = sess.run(self.hiddenPHList[layerInd], feed_dict = {inPH: inPHValue})
         
         if useRandSamp:
-            sameClassMinDistPair = np.array([self.ptArr[random.randint(0, self.ptNum)] for _ in range(2)])
-            diffClassMinDistPair = np.array([self.ptArr[random.randint(0, self.ptNum)] for _ in range(2)])
+            sameClassMaxDistPair = np.array([self.ptArr[random.randint(0, self.ptNum-1)] for _ in range(2)])
+            diffClassMinDistPair = np.array([self.ptArr[random.randint(0, self.ptNum-1)] for _ in range(2)])
         else:
             sameClassMaxDistPair = self.getSameClassMaxDistPair(inPHValue, outPHValue)
             diffClassMinDistPair = self.getDiffClassMinDistPair(inPHValue, outPHValue)
