@@ -29,6 +29,20 @@ class DataFormater():
                 classList += [[int(x) for x in line[:-1].split('\t')]]
         self.classArr = np.array(classList)
         self.dataNum = len(self.classArr)
+        
+
+        nodeSetList = []
+        for nodeInd in range(self.dataNum):
+            if not nodeSetList or (True not in [nodeInd in theSet for theSet in nodeSetList]):
+                nodeSetList += [set([ind for ind in range(self.dataNum) if self.classArr[nodeInd, ind] == 1])]
+        print (nodeSetList, [len(theSet) for theSet in nodeSetList])
+        for theSet in nodeSetList:
+            for node in theSet:
+                for node2 in range(self.dataNum):
+                    if (node2 in theSet and self.classArr[node, node2] == 0) or (node2 not in theSet and self.classArr[node, node2] == 1):
+                        print ('the relation between node %d and node %d is wrong!' % (node, node2))
+        print ('check done!')
+
 
     def buildDiffSameClassArr(self):
         sameClassList = []
@@ -158,6 +172,6 @@ if __name__ == '__main__':
     df.loadClassData('hw2class.dat')
     df.buildDiffSameClassArr()
 
-    som = SOM_perceptron(df.ptArr, df.sameClassArr, df.diffClassArr, wInitStddev = 10.0, bInitStddev = 1.0)
+    som = SOM_perceptron(df.ptArr, df.sameClassArr, df.diffClassArr, wInitStddev = 1.0, bInitStddev = 0.1)
     som.buildModel(L = 5, nList = [5, 5, 5, 5, 5], EtaAtt = 0.01, EtaRep = 0.1)
     som.trainModel(epochNum = 5000, evalPerEpochNum = 500, useRandSampEpochNum = 0)
