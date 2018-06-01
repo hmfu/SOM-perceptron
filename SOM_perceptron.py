@@ -43,10 +43,12 @@ class DataFormater():
         self.diffClassArr = np.array(diffClassList)
 
 class SOM_perceptron():
-    def __init__(self, ptArr, sameClassArr, diffClassArr):
+    def __init__(self, ptArr, sameClassArr, diffClassArr, wInitStddev, bInitStddev):
         self.ptArr = ptArr
         self.sameClassArr = sameClassArr
         self.diffClassArr = diffClassArr
+        self.wInitStddev = wInitStddev
+        self.bInitStddev = bInitStddev
         self.weightList = None
         self.biasList = None
         self.inputPH = None
@@ -54,11 +56,12 @@ class SOM_perceptron():
         self.lossPHList = None
         self.outputPH = None
         self.ptNum = len(ptArr)
+        self.optimizer = None
 
     def perceptronLayer(self, inPH, outDim, useSigmoid):
         inDim = tf.cast(inPH.shape[1], tf.int32)
-        w = tf.Variable(tf.random_normal(shape = [inDim, outDim], stddev = 0.1))
-        b = tf.Variable(tf.random_normal(shape = [outDim], stddev = 0.01))
+        w = tf.Variable(tf.random_normal(shape = [inDim, outDim], stddev = self.wInitStddev))
+        b = tf.Variable(tf.random_normal(shape = [outDim], stddev = self.bInitStddev))
         self.weightList += [w]
         self.biasList += [b]
         outPH = tf.matmul(inPH, w) + b if not useSigmoid else tf.sigmoid(tf.matmul(inPH, w) + b)
@@ -91,19 +94,21 @@ class SOM_perceptron():
             row3 = tf.gather(self.hiddenPHList[layerInd], tf.constant([3]))
             self.lossPHList += [tf.constant(EtaAtt / 2) * tf.reduce_sum(tf.square(row0 - row1)) - tf.constant(EtaRep / 2) * tf.reduce_sum(tf.square(row2 - row3))]
 
-    def trainModel(self, epochNum, evalPerEpochNum, useRandSamp):
+    def trainModel(self, epochNum, evalPerEpochNum, useRandSampEpochNum):
         with tf.Session(config = config) as sess:
             sess.run(tf.global_variables_initializer())
             for layerInd in range(self.L):
-                print ('\nuse random sample: ', useRandSamp)
+                print ('\nuse random sample epoch number: ', useRandSampEpochNum)
                 print ('total epoch num: ', epochNum)
                 print ('training layer %d...' % (layerInd))
                 inPHValue = self.ptArr if layerInd == 0 else sess.run(self.hiddenPHList[layerInd-1], feed_dict = {self.inputPH: self.ptArr})
+                self.optimizer = tf.train.GradientDescentOptimizer(learning_rate = 1.0).minimize(self.lossPHList[layerInd], var_list = [self.weightList[layerInd], self.biasList[layerInd]])
                 for epochInd in range(epochNum):
-                    if epochInd % evalPerEpochNum - 1 == 0:
-                        print ('training epoch %d...' % (epochInd))
+                    if epochInd % evalPerEpochNum == evalPerEpochNum - 1:
+                        print ('\ntraining epoch %d...' % (epochInd))
                         print ('evaluating...')
                         self.evaluate(sess)
+                    useRandSamp = 1 if epochInd < useRandSampEpochNum else 0
                     self.trainLayer(sess, layerInd, inPHValue, useRandSamp)
         
     def trainLayer(self, sess, layerInd, inPHValue, useRandSamp):
@@ -111,27 +116,25 @@ class SOM_perceptron():
         outPHValue = sess.run(self.hiddenPHList[layerInd], feed_dict = {inPH: inPHValue})
         
         if useRandSamp:
-            sameClassMaxDistPair = np.array([self.ptArr[random.randint(0, self.ptNum-1)] for _ in range(2)])
-            diffClassMinDistPair = np.array([self.ptArr[random.randint(0, self.ptNum-1)] for _ in range(2)])
+            sameClassMaxDistPair = np.array([inPHValue[random.randint(0, self.ptNum-1)] for _ in range(2)])
+            diffClassMinDistPair = self.getDiffClassMinDistPair(inPHValue, outPHValue)
         else:
             sameClassMaxDistPair = self.getSameClassMaxDistPair(inPHValue, outPHValue)
             diffClassMinDistPair = self.getDiffClassMinDistPair(inPHValue, outPHValue)
         
         trainFeedDict = {inPH: np.concatenate([sameClassMaxDistPair, diffClassMinDistPair], axis = 0)}
-        
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate = 1.0).minimize(self.lossPHList[layerInd], var_list = [self.weightList[layerInd], self.biasList[layerInd]])
-        sess.run(optimizer, feed_dict = trainFeedDict)
+        sess.run(self.optimizer, feed_dict = trainFeedDict)
 
     def getSameClassMaxDistPair(self, inPHValue, outPHValue):
         firstPt = np.array([outPHValue[ind] for ind in self.sameClassArr[:, 0]])
         secondPt = np.array([outPHValue[ind] for ind in self.sameClassArr[:, 1]])
-        maxDistInd = np.argmax(np.linalg.norm(firstPt - secondPt, axis = 1))
+        maxDistInd = np.argmax(np.sum(np.square(firstPt - secondPt), axis = 1))
         return np.array([inPHValue[ind] for ind in self.sameClassArr[maxDistInd]])
 
     def getDiffClassMinDistPair(self, inPHValue, outPHValue):
         firstPt = np.array([outPHValue[ind] for ind in self.diffClassArr[:, 0]])
         secondPt = np.array([outPHValue[ind] for ind in self.diffClassArr[:, 1]])
-        minDistInd = np.argmin(np.linalg.norm(firstPt - secondPt, axis = 1))
+        minDistInd = np.argmin(np.sum(np.square(firstPt - secondPt), axis = 1))
         return np.array([inPHValue[ind] for ind in self.diffClassArr[minDistInd]])
 
     def evaluate(self, sess):
@@ -145,7 +148,7 @@ class SOM_perceptron():
             sameDistList += [maxSame]
             diffDistList += [minDiff]
 
-        print ('        maxSame         minDiff')
+        print ('        maxSame \tminDiff')
         for ind in range(self.L):
             print ('L %d    ' % (ind), sameDistList[ind], '\t', diffDistList[ind])
 
@@ -155,6 +158,6 @@ if __name__ == '__main__':
     df.loadClassData('hw2class.dat')
     df.buildDiffSameClassArr()
 
-    som = SOM_perceptron(df.ptArr, df.sameClassArr, df.diffClassArr)
+    som = SOM_perceptron(df.ptArr, df.sameClassArr, df.diffClassArr, wInitStddev = 10.0, bInitStddev = 1.0)
     som.buildModel(L = 5, nList = [5, 5, 5, 5, 5], EtaAtt = 0.01, EtaRep = 0.1)
-    som.trainModel(epochNum = 5000, evalPerEpochNum = 500, useRandSamp = True)
+    som.trainModel(epochNum = 5000, evalPerEpochNum = 500, useRandSampEpochNum = 0)
