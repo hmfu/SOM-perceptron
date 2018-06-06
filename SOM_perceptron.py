@@ -172,5 +172,5 @@ if __name__ == '__main__':
     df.buildDiffSameClassArr()
 
     som = SOM_perceptron(df.ptArr, df.sameClassArr, df.diffClassArr, wInitStddev = 1.0, bInitStddev = 0.1)
-    som.buildModel(L = 5, nList = [5, 5, 5, 5, 5], EtaAtt = 0.0001, EtaRep = 0.1)
+    som.buildModel(L = 5, nList = [5, 5, 5, 5, 5], EtaAtt = 0.0001, EtaRep = 1.0)
     som.trainModel(epochNum = 15000, evalPerEpochNum = 5000, useRandSampEpochNum = 0)
