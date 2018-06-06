@@ -72,14 +72,13 @@ class SOM_perceptron():
         self.ptNum = len(ptArr)
         self.optimizer = None
 
-    def perceptronLayer(self, inPH, outDim, useSigmoid):
+    def perceptronLayer(self, inPH, outDim):
         inDim = tf.cast(inPH.shape[1], tf.int32)
         w = tf.Variable(tf.random_normal(shape = [inDim, outDim], stddev = self.wInitStddev))
         b = tf.Variable(tf.random_normal(shape = [outDim], stddev = self.bInitStddev))
         self.weightList += [w]
         self.biasList += [b]
-        outPH = tf.matmul(inPH, w) + b if not useSigmoid else tf.sigmoid(tf.matmul(inPH, w) + b)
-        return outPH
+        return tf.sigmoid(tf.matmul(inPH, w) + b)
 
     def buildModel(self, L, nList, EtaAtt, EtaRep):
 
@@ -95,8 +94,7 @@ class SOM_perceptron():
         self.weightList = []
         self.biasList = []
         for layerInd in range(L):
-            useSigmoid = 0 if layerInd == L-1 else 1
-            self.hiddenPH = self.perceptronLayer(self.hiddenPH, nList[layerInd], useSigmoid)
+            self.hiddenPH = self.perceptronLayer(self.hiddenPH, nList[layerInd])
             self.hiddenPHList += [self.hiddenPH]
         self.outputPH = self.hiddenPH
 
@@ -164,7 +162,8 @@ class SOM_perceptron():
 
         print ('        maxSame \tminDiff')
         for ind in range(self.L):
-            print ('L %d    ' % (ind), sameDistList[ind], '\t', diffDistList[ind])
+            maxSame, minDiff = sameDistList[ind], diffDistList[ind]
+            print ('L %d    ' % (ind), maxSame, '\t', minDiff, '\t', maxSame / minDiff)
 
 if __name__ == '__main__':
     df = DataFormater()
@@ -173,5 +172,5 @@ if __name__ == '__main__':
     df.buildDiffSameClassArr()
 
     som = SOM_perceptron(df.ptArr, df.sameClassArr, df.diffClassArr, wInitStddev = 1.0, bInitStddev = 0.1)
-    som.buildModel(L = 5, nList = [5, 5, 5, 5, 5], EtaAtt = 0.01, EtaRep = 0.1)
-    som.trainModel(epochNum = 5000, evalPerEpochNum = 500, useRandSampEpochNum = 0)
+    som.buildModel(L = 5, nList = [5, 5, 5, 5, 5], EtaAtt = 0.0001, EtaRep = 0.1)
+    som.trainModel(epochNum = 15000, evalPerEpochNum = 5000, useRandSampEpochNum = 0)
